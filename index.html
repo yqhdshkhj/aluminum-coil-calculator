@@ -1,0 +1,892 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>涂装铝卷成本计算器</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e40af',
+                        secondary: '#3b82f6',
+                        accent: '#60a5fa',
+                        neutral: '#f3f4f6',
+                        'neutral-dark': '#9ca3af',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        'card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+            .card {
+                @apply bg-white rounded-lg shadow-card p-6 transition-all-300;
+            }
+            .card:hover {
+                @apply shadow-card-hover;
+            }
+            .btn {
+                @apply px-4 py-2 rounded-md font-medium transition-all-300 focus:outline-none focus:ring-2 focus:ring-offset-2;
+            }
+            .btn-primary {
+                @apply bg-primary text-white hover:bg-primary/90 focus:ring-primary/50;
+            }
+            .btn-secondary {
+                @apply bg-secondary text-white hover:bg-secondary/90 focus:ring-secondary/50;
+            }
+            .input-field {
+                @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary;
+            }
+            .label {
+                @apply block text-sm font-medium text-gray-700 mb-1;
+            }
+            .badge {
+                @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+            }
+            .badge-success {
+                @apply bg-green-100 text-green-800;
+            }
+            .badge-warning {
+                @apply bg-yellow-100 text-yellow-800;
+            }
+            .badge-danger {
+                @apply bg-red-100 text-red-800;
+            }
+            .price-highlight {
+                @apply text-2xl font-bold text-primary;
+            }
+            .price-component {
+                @apply flex justify-between items-center py-2 border-b border-gray-100;
+            }
+            .price-component:last-child {
+                @apply border-b-0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 头部 -->
+        <header class="mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">涂装铝卷成本计算器</h1>
+                    <p class="text-gray-600 mt-1">根据上海长江铝锭前五日均价和加工费标准，快速计算涂装铝卷成本</p>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <span id="last-update" class="text-sm text-gray-500">最后更新: 2026-03-14</span>
+                    <button id="refresh-btn" class="btn btn-secondary ml-4">
+                        <i class="fa fa-refresh mr-1"></i> 刷新数据
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 左侧：输入参数 -->
+            <div class="lg:col-span-1">
+                <div class="card">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-6">输入参数</h2>
+                    
+                    <form id="calculator-form">
+                        <!-- 铝卷参数 -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-medium text-gray-700 mb-3">铝卷参数</h3>
+                            
+                            <div class="mb-4">
+                                <label for="thickness" class="label">厚度 (mm)</label>
+                                <div class="relative">
+                                    <input type="number" id="thickness" class="input-field" value="0.5" min="0.01" max="3.0" step="0.001">
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">常用厚度: 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2</p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="width" class="label">宽度 (mm)</label>
+                                <input type="number" id="width" class="input-field" value="1240" min="100" max="3000" step="1">
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="alloy" class="label">合金型号</label>
+                                <input type="number" id="alloy" class="input-field" value="1100" min="1000" max="9999" step="1">
+                            </div>
+                        </div>
+                        
+                        <!-- 涂层参数 -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-medium text-gray-700 mb-3">涂层参数</h3>
+                            
+                            <div class="mb-4">
+                                <label for="coating-type" class="label">涂层类型</label>
+                                <select id="coating-type" class="input-field">
+                                    <option value="PE">聚酯单涂</option>
+                                    <option value="PE2">聚酯双涂</option>
+                                    <option value="PVDF" selected="">氟碳 (PVDF)</option>
+                                    <option value="gray">灰白底</option>
+                                </select>
+                            </div>
+                            
+
+                            
+                            <div class="mb-4">
+                                <label for="color" class="label">颜色</label>
+                                <select id="color" class="input-field">
+                                    <option value="闪银" selected="">闪银</option>
+                                    <option value="白银灰">白银灰</option>
+                                    <option value="纯白">纯白</option>
+                                    <option value="哑白">哑白</option>
+                                    <option value="象牙白">象牙白</option>
+                                    <option value="灰白">灰白</option>
+                                    <option value="香槟色">香槟色</option>
+                                    <option value="蓝色">蓝色</option>
+                                    <option value="绿色">绿色</option>
+                                    <option value="黄色">黄色</option>
+                                    <option value="深灰色">深灰色</option>
+                                    <option value="黑色">黑色</option>
+                                    <option value="闪金黄">闪金黄</option>
+                                    <option value="棕桐">棕桐</option>
+                                    <option value="红银">红银</option>
+                                    <option value="绿银">绿银</option>
+                                    <option value="红色">红色</option>
+                                    <option value="桔色">桔色</option>
+                                    <option value="紫色">紫色</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+
+                        
+                        <button type="submit" class="btn btn-primary w-full">
+                            <i class="fa fa-calculator mr-1"></i> 计算成本
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- 中间和右侧：结果展示 -->
+            <div class="lg:col-span-2">
+                <!-- 成本计算结果 -->
+                <div class="card mb-8">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-6">成本计算结果</h2>
+                    
+                    <div id="cost-details" class="mb-6">
+                        <div class="price-component">
+                            <span class="text-gray-700">铝锭成本</span>
+                            <span id="aluminum-cost">25,110.00</span>
+                        </div>
+                        <div class="price-component">
+                            <span class="text-gray-700">涂层加工费</span>
+                            <span id="coating-cost">8,500.00</span>
+                        </div>
+                        <div class="price-component">
+                            <span class="text-gray-700">其他费用</span>
+                            <span id="other-costs">0.00</span>
+                        </div>
+                        <div class="price-component pt-4 border-t-2 border-gray-200">
+                            <span class="text-lg font-semibold text-gray-800">总成本 (元/吨)</span>
+                            <span id="total-cost" class="price-highlight">33,610.00</span>
+                        </div>
+                        <div class="price-component">
+                            <span class="text-lg font-semibold text-gray-800">总成本 (美元/吨)</span>
+                            <span id="total-cost-usd" class="price-highlight">4,744.29</span>
+                        </div>
+                        <div class="price-component">
+                            <span class="text-gray-700">当前汇率 (USD/CNY)</span>
+                            <span id="exchange-rate" class="text-gray-700">6.8966</span>
+                        </div>
+                    </div>
+                    
+
+                </div>
+                
+                <!-- 铝锭价格信息 -->
+                <div class="card">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                        <h2 class="text-xl font-semibold text-gray-800">铝锭价格信息</h2>
+                        <div class="mt-2 md:mt-0">
+                            <span id="aluminum-price" class="price-highlight">25,014 元/吨</span>
+                            <span id="price-change" class="badge badge-success ml-2">
+                                <i class="fa fa-arrow-up mr-1"></i> +660
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>前五日均价:</span>
+                            <span id="five-day-avg">25,014 元/吨</span>
+                        </div>
+                        <div class="flex justify-between text-sm text-gray-600">
+                            <span>数据来源:</span>
+                            <span>长江有色金属网</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 价格趋势图 -->
+                    <div class="h-64">
+                        <canvas id="price-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- 价格说明 -->
+                <div class="card">
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">价格说明</h3>
+                    <div class="text-sm text-gray-600 space-y-2">
+                        <p>1. 铝锭价格基于上海长江有色金属网前五日均价</p>
+                        <p>2. 加工费根据涂层类型、厚度和颜色等因素调整</p>
+                        <p>3. 特殊颜色和纹理需额外加价</p>
+                        <p>4. 保护膜和特殊包装需额外收费</p>
+                        <p>5. 本价格仅供参考，实际价格可能因市场波动而调整</p>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <button id="download-btn" class="btn btn-secondary mr-2">
+                            <i class="fa fa-download mr-1"></i> 下载报价单
+                        </button>
+                        <button id="print-btn" class="btn btn-secondary">
+                            <i class="fa fa-print mr-1"></i> 打印
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 页脚 -->
+        <footer class="mt-12 text-center text-sm text-gray-500">
+            <p>© 2026 涂装铝卷成本计算器 | 数据更新时间: 2026-03-14</p>
+        </footer>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // 铝锭价格历史数据 (3月9日-3月13日)
+        const aluminumPriceHistory = {
+            dates: ['3月9日', '3月10日', '3月11日', '3月12日', '3月13日'],
+            prices: [25250, 24450, 25020, 25240, 25110]
+        };
+        
+        // 铝锭前五日均价
+        const fiveDayAverage = 25014;
+        
+        // 加工费标准（根据报价参考数据）
+        const processingFees = {
+            // PE涂层加工费 (元/吨) - 聚酯单涂
+            'PE': {
+                'I': {
+                    '0.018': 14500,
+                    '0.020': 13300,
+                    '0.022': 12300,
+                    '0.024': 11800,
+                    '0.026': 11500,
+                    '0.030': 10000,
+                    '0.036': 9600,
+                    '0.040': 9100,
+                    '0.050': 9000,
+                    '0.060': 8900,
+                    '0.070': 8800,
+                    '0.080': 8300,
+                    '0.09-0.11': 7900,
+                    '0.12-0.14': 7200,
+                    '0.15-0.17': 6800,
+                    '0.18-0.20': 6300,
+                    '0.21-0.25': 6200,
+                    '0.26-0.30': 5900,
+                    '0.31-0.40': 5700,
+                    '0.41-0.50': 5600,
+                    '0.51-0.80': 5500
+                },
+                'II': {
+                    '0.018': 15500,
+                    '0.020': 14500,
+                    '0.022': 13500,
+                    '0.024': 12800,
+                    '0.026': 12500,
+                    '0.030': 11500,
+                    '0.036': 10600,
+                    '0.040': 10100,
+                    '0.050': 9900,
+                    '0.060': 9700,
+                    '0.070': 9500,
+                    '0.080': 8800,
+                    '0.09-0.11': 8200,
+                    '0.12-0.14': 7600,
+                    '0.15-0.17': 7200,
+                    '0.18-0.20': 6800,
+                    '0.21-0.25': 6700,
+                    '0.26-0.30': 6400,
+                    '0.31-0.40': 6200,
+                    '0.41-0.50': 6000,
+                    '0.51-0.80': 5900
+                }
+            },
+            // PE2涂层加工费 (元/吨) - 聚酯双涂
+            'PE2': {
+                'I': {
+                    '0.018': 0,
+                    '0.020': 0,
+                    '0.022': 0,
+                    '0.024': 0,
+                    '0.026': 0,
+                    '0.030': 0,
+                    '0.036': 0,
+                    '0.040': 0,
+                    '0.050': 0,
+                    '0.060': 0,
+                    '0.070': 0,
+                    '0.080': 0,
+                    '0.09-0.11': 0,
+                    '0.12-0.14': 0,
+                    '0.15-0.17': 0,
+                    '0.18-0.20': 8200,
+                    '0.21-0.25': 7600,
+                    '0.26-0.30': 7000,
+                    '0.31-0.40': 6600,
+                    '0.41-0.50': 6200,
+                    '0.51-0.80': 6000
+                },
+                'II': {
+                    '0.018': 0,
+                    '0.020': 0,
+                    '0.022': 0,
+                    '0.024': 0,
+                    '0.026': 0,
+                    '0.030': 0,
+                    '0.036': 0,
+                    '0.040': 0,
+                    '0.050': 0,
+                    '0.060': 0,
+                    '0.070': 0,
+                    '0.080': 0,
+                    '0.09-0.11': 0,
+                    '0.12-0.14': 0,
+                    '0.15-0.17': 0,
+                    '0.18-0.20': 8500,
+                    '0.21-0.25': 7900,
+                    '0.26-0.30': 7300,
+                    '0.31-0.40': 6900,
+                    '0.41-0.50': 6500,
+                    '0.51-0.80': 6300
+                }
+            },
+            // PVDF涂层加工费 (元/吨) - 氟碳产品
+            'PVDF': {
+                'I': {
+                    '0.018': 0,
+                    '0.020': 0,
+                    '0.022': 0,
+                    '0.024': 0,
+                    '0.026': 0,
+                    '0.030': 0,
+                    '0.036': 0,
+                    '0.040': 0,
+                    '0.050': 0,
+                    '0.060': 0,
+                    '0.070': 0,
+                    '0.080': 0,
+                    '0.09-0.11': 0,
+                    '0.12-0.14': 0,
+                    '0.15-0.17': 0,
+                    '0.18-0.20': 15500,
+                    '0.21-0.25': 14500,
+                    '0.26-0.30': 13000,
+                    '0.31-0.40': 11500,
+                    '0.41-0.50': 10000,
+                    '0.51-0.80': 9500
+                },
+                'II': {
+                    '0.018': 0,
+                    '0.020': 0,
+                    '0.022': 0,
+                    '0.024': 0,
+                    '0.026': 0,
+                    '0.030': 0,
+                    '0.036': 0,
+                    '0.040': 0,
+                    '0.050': 0,
+                    '0.060': 0,
+                    '0.070': 0,
+                    '0.080': 0,
+                    '0.09-0.11': 0,
+                    '0.12-0.14': 0,
+                    '0.15-0.17': 0,
+                    '0.18-0.20': 17000,
+                    '0.21-0.25': 16000,
+                    '0.26-0.30': 14500,
+                    '0.31-0.40': 13000,
+                    '0.41-0.50': 11000,
+                    '0.51-0.80': 10000
+                }
+            },
+            // 灰白底加工费 (元/吨)
+            'gray': {
+                '0.018': 9500,
+                '0.020': 9000,
+                '0.022': 8500,
+                '0.024': 8000,
+                '0.026': 7500,
+                '0.030': 7000,
+                '0.036': 6500,
+                '0.040': 6000,
+                '0.050': 5600,
+                '0.060': 5200,
+                '0.070': 4900,
+                '0.080': 4700,
+                '0.09-0.11': 4500,
+                '0.12-0.14': 4300,
+                '0.15-0.17': 4000,
+                '0.18-0.20': 3900,
+                '0.21-0.25': 3800,
+                '0.26-0.30': 3700,
+                '0.31-0.40': 3600,
+                '0.41-0.50': 3600,
+                '0.51-0.80': 3600
+            }
+        };
+        
+        // 厚度系数已整合到processingFees中
+        
+        // 颜色系数
+        const colorFactors = {
+            '闪银': 1.0,
+            '白银灰': 1.0,
+            '纯白': 1.0,
+            '哑白': 1.0,
+            '象牙白': 1.0,
+            '灰白': 1.0,
+            '香槟色': 1.0,
+            '蓝色': 1.0,
+            '绿色': 1.0,
+            '黄色': 1.0,
+            '深灰色': 1.0,
+            '黑色': 1.0,
+            '闪金黄': 1.0,
+            '棕桐': 1.0,
+            '红银': 1.0,
+            '绿银': 1.0,
+            '红色': 1.0,
+            '桔色': 1.0,
+            '紫色': 1.0
+        };
+        
+        // 其他费用
+        const otherCosts = {
+            '保护膜': 200,
+            '包装': 300
+        };
+        
+        // 初始化价格趋势图
+        function initPriceChart() {
+            const ctx = document.getElementById('price-chart').getContext('2d');
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: aluminumPriceHistory.dates,
+                    datasets: [{
+                        label: '铝锭价格 (元/吨)',
+                        data: aluminumPriceHistory.prices,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#3b82f6',
+                        pointRadius: 4,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `价格: ${context.parsed.y.toLocaleString()} 元/吨`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 初始化成本构成饼图
+        function initCostChart(costData) {
+            const ctx = document.getElementById('cost-chart').getContext('2d');
+            
+            // 销毁现有图表（如果存在）
+            if (window.costChart) {
+                window.costChart.destroy();
+            }
+            
+            window.costChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: costData.labels,
+                    datasets: [{
+                        data: costData.values,
+                        backgroundColor: [
+                            '#3b82f6', // 铝锭成本
+                            '#10b981', // 涂层加工费
+                            '#f59e0b', // 厚度调整
+                            '#ef4444', // 颜色调整
+                            '#8b5cf6'  // 其他费用
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                boxWidth: 12,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${context.label}: ${value.toLocaleString()} 元 (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+        }
+        
+        // 计算成本
+        function calculateCost() {
+            // 获取输入值
+            const thickness = parseFloat(document.getElementById('thickness').value);
+            const width = parseInt(document.getElementById('width').value);
+            const coatingType = document.getElementById('coating-type').value;
+            const color = document.getElementById('color').value;
+            
+            // 基础成本
+            const aluminumCost = fiveDayAverage;
+            
+            // 根据颜色和厚度确定涂层类型
+            function determineCoatingType(coatingType, color, thickness) {
+                // 聚酯单涂（PE）
+                if (coatingType === 'PE') {
+                    if (thickness <= 0.05) {
+                        // 0.018-0.05规格
+                        const peClassITypes = ['象牙白', '纯白', '闪银', '白银灰', '黑色', '蓝色'];
+                        return peClassITypes.includes(color) ? 'I' : 'II';
+                    } else {
+                        // 0.06以上规格
+                        const peClassITypes = ['象牙白', '纯白', '闪银', '白银灰'];
+                        return peClassITypes.includes(color) ? 'I' : 'II';
+                    }
+                }
+                // 聚酯双涂（PE2）
+                else if (coatingType === 'PE2') {
+                    const pe2ClassITypes = ['闪银', '白银灰', '纯白', '哑白', '象牙白', '灰白'];
+                    return pe2ClassITypes.includes(color) ? 'I' : 'II';
+                }
+                // 氟碳（PVDF）
+                else if (coatingType === 'PVDF') {
+                    const pvdfClassITypes = ['纯白', '哑白', '象牙白', '灰白'];
+                    const pvdfClassIITypes = ['闪银', '白银灰', '香槟色', '深灰色', '黑色'];
+                    
+                    if (pvdfClassITypes.includes(color)) {
+                        return 'I';
+                    } else if (pvdfClassIITypes.includes(color)) {
+                        return 'II';
+                    } else {
+                        // III类颜色，暂时按II类处理
+                        return 'II';
+                    }
+                }
+                // 灰白底（gray）
+                else if (coatingType === 'gray') {
+                    return 'I'; // 灰白底只有一种类型
+                }
+                return 'I';
+            }
+            
+            const coatingClass = determineCoatingType(coatingType, color, thickness);
+            
+            // 找到最接近的厚度范围
+            function findClosestThickness(thickness) {
+                let thicknessRanges;
+                if (coatingType === 'PVDF' || coatingType === 'PE' || coatingType === 'PE2') {
+                    thicknessRanges = Object.keys(processingFees[coatingType][coatingClass]);
+                } else if (coatingType === 'gray') {
+                    // 灰白底只有一种类型
+                    thicknessRanges = Object.keys(processingFees[coatingType]);
+                } else {
+                    thicknessRanges = Object.keys(processingFees[coatingType][coatingClass]);
+                }
+                
+                let closestRange = thicknessRanges[0];
+                let minDiff = Infinity;
+                
+                for (const range of thicknessRanges) {
+                    if (range.includes('-')) {
+                        // 处理范围值，如 '0.09-0.11'
+                        const [min, max] = range.split('-').map(parseFloat);
+                        if (thickness >= min && thickness <= max) {
+                            return range;
+                        }
+                    } else {
+                        // 处理单一值，如 '0.05'
+                        const rangeValue = parseFloat(range);
+                        const diff = Math.abs(thickness - rangeValue);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestRange = range;
+                        }
+                    }
+                }
+                return closestRange;
+            }
+            
+            const closestThickness = findClosestThickness(thickness);
+            
+            // 计算彩银系列加价
+            let colorAdjustment = 0;
+            if (coatingType === 'PE' && color.includes('银') && !['闪银', '白银灰'].includes(color)) {
+                colorAdjustment = 500;
+            }
+            
+            // 获取基础加工费（基于1240宽度）
+            let baseCoatingCost;
+            if (coatingType === 'PVDF' || coatingType === 'PE' || coatingType === 'PE2') {
+                baseCoatingCost = processingFees[coatingType][coatingClass][closestThickness];
+            } else if (coatingType === 'gray') {
+                // 灰白底只有一种类型
+                baseCoatingCost = processingFees[coatingType][closestThickness];
+            } else {
+                baseCoatingCost = processingFees[coatingType][coatingClass][closestThickness];
+            }
+            
+            // 计算宽度调整
+            let widthAdjustment = 0;
+            if (width === 980) {
+                widthAdjustment = 200;
+            } else if (width === 1000) {
+                widthAdjustment = 150;
+            } else if (width > 1270) {
+                widthAdjustment = 500;
+            }
+            
+            // 计算合金调整
+            let alloyAdjustment = 0;
+            const alloy = document.getElementById('alloy').value;
+            if (alloy === '3003') {
+                alloyAdjustment = 300;
+            } else if (alloy === '3004') {
+                alloyAdjustment = 1000;
+            } else if (alloy === '3005') {
+                alloyAdjustment = 1200;
+            } else if (alloy === '3105') {
+                alloyAdjustment = 800;
+            }
+            
+            // 计算最终加工费
+            const coatingCost = baseCoatingCost + widthAdjustment + alloyAdjustment;
+            const thicknessAdjustment = 0; // 厚度因素已直接整合到加工费中
+            
+            // 检查加工费是否为0
+            if (coatingCost === 0) {
+                // 显示错误提示
+                alert('该厚度不支持所选的涂层类型，请选择其他厚度或涂层类型。');
+                return 0;
+            }
+            
+            // 其他费用（已移除）
+            const otherCost = 0;
+            
+            // 总成本
+            const totalCost = aluminumCost + coatingCost + thicknessAdjustment + colorAdjustment + otherCost;
+            
+            // 美金换算（使用固定汇率6.8966）
+            const exchangeRate = 6.8966; // 使用用户要求的固定汇率
+            
+            // 计算美元成本
+            const totalCostUSD = totalCost / exchangeRate;
+            console.log('总成本:', totalCost, '汇率:', exchangeRate, '美元成本:', totalCostUSD);
+            
+            // 更新UI
+            document.getElementById('aluminum-cost').textContent = aluminumCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('coating-cost').textContent = coatingCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('other-costs').textContent = otherCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('total-cost').textContent = totalCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('total-cost-usd').textContent = totalCostUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('exchange-rate').textContent = exchangeRate.toFixed(4);
+            
+            // 更新铝锭价格信息显示前五日均价
+            document.getElementById('aluminum-price').textContent = fiveDayAverage.toLocaleString('zh-CN') + ' 元/吨';
+            document.getElementById('five-day-avg').textContent = fiveDayAverage.toLocaleString('zh-CN') + ' 元/吨';
+            
+            return totalCost;
+        }
+        
+        // 刷新数据
+        function refreshData() {
+            // 模拟数据刷新
+            document.getElementById('refresh-btn').disabled = true;
+            document.getElementById('refresh-btn').innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i> 更新中...';
+            
+            setTimeout(() => {
+                // 更新最后更新时间
+                const now = new Date();
+                const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                document.getElementById('last-update').textContent = `最后更新: ${formattedDate}`;
+                
+                // 恢复按钮状态
+                document.getElementById('refresh-btn').disabled = false;
+                document.getElementById('refresh-btn').innerHTML = '<i class="fa fa-refresh mr-1"></i> 刷新数据';
+                
+                // 显示通知
+                alert('数据已更新至最新！');
+                
+                // 重新计算成本
+                calculateCost();
+            }, 1000);
+        }
+        
+        // 下载报价单
+        function downloadQuote() {
+            // 获取输入值
+            const thickness = document.getElementById('thickness').value;
+            const width = document.getElementById('width').value;
+            const alloy = document.getElementById('alloy').value;
+            const coatingType = document.getElementById('coating-type').value;
+            const color = document.getElementById('color').value;
+            const totalCost = document.getElementById('total-cost').textContent;
+            const totalCostUSD = document.getElementById('total-cost-usd').textContent;
+            
+            // 创建报价单内容
+            let quoteContent = `涂装铝卷报价单\n`;
+            quoteContent += `==================\n\n`;
+            quoteContent += `基本信息\n`;
+            quoteContent += `--------\n`;
+            quoteContent += `日期: ${new Date().toLocaleDateString()}\n`;
+            quoteContent += `产品: 涂装铝卷\n`;
+            quoteContent += `规格: ${thickness}mm × ${width}mm\n`;
+            quoteContent += `合金: ${alloy}\n`;
+            quoteContent += `涂层: ${coatingType}\n`;
+            quoteContent += `颜色: ${color}\n\n`;
+            
+            quoteContent += `成本明细\n`;
+            quoteContent += `--------\n`;
+            quoteContent += `铝锭成本: ${document.getElementById('aluminum-cost').textContent} 元/吨\n`;
+            quoteContent += `涂层加工费: ${document.getElementById('coating-cost').textContent} 元/吨\n`;
+            quoteContent += `其他费用: ${document.getElementById('other-costs').textContent} 元/吨\n\n`;
+            
+            quoteContent += `总价: ${totalCost} 元/吨\n`;
+            quoteContent += `总价: ${totalCostUSD} 美元/吨\n\n`;
+            quoteContent += `备注: 本报价有效期为3天，最终价格以实际订单为准。`;
+            
+            // 创建Blob对象
+            const blob = new Blob([quoteContent], { type: 'text/plain;charset=utf-8' });
+            
+            // 创建下载链接
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `涂装铝卷报价单_${new Date().toISOString().split('T')[0]}.txt`;
+            
+            // 触发下载
+            document.body.appendChild(a);
+            a.click();
+            
+            // 清理
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 0);
+        }
+        
+        // 打印页面
+        function printPage() {
+            window.print();
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化价格趋势图
+            initPriceChart();
+            
+            // 默认计算一次成本
+            calculateCost();
+            
+            // 表单提交事件
+            document.getElementById('calculator-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                calculateCost();
+            });
+            
+            // 刷新按钮点击事件
+            document.getElementById('refresh-btn').addEventListener('click', refreshData);
+            
+            // 下载报价单按钮点击事件
+            document.getElementById('download-btn').addEventListener('click', downloadQuote);
+            
+            // 打印按钮点击事件
+            document.getElementById('print-btn').addEventListener('click', printPage);
+            
+            // 输入变化时自动计算
+            const inputs = document.querySelectorAll('select');
+            inputs.forEach(input => {
+                input.addEventListener('change', calculateCost);
+            });
+        });
+    </script>
+
+</body></html>
